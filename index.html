@@ -4,12 +4,15 @@
   <meta charset="UTF-8" />
   <title>מעקב אימונים - דוד</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="manifest" href="manifest.json" />
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
       padding: 16px;
       background: #f5f5f5;
+      color: #111;
     }
     h1 {
       font-size: 1.4rem;
@@ -37,6 +40,7 @@
       padding: 6px 10px;
       border-radius: 8px;
       border: 1px solid #ccc;
+      background: #fff;
     }
     button {
       cursor: pointer;
@@ -44,9 +48,6 @@
     .small {
       font-size: 0.85rem;
       color: #555;
-    }
-    .day-label {
-      font-weight: 600;
     }
     .checkbox-label {
       display: flex;
@@ -56,6 +57,69 @@
     }
     .stats {
       font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+    .streak {
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
+    /* גרף שבועי */
+    .graph-container {
+      margin-top: 8px;
+    }
+    .graph-title {
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+    }
+    .graph {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      height: 110px;
+      padding: 4px 2px 0;
+    }
+    .graph-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      margin: 0 2px;
+    }
+    .graph-bar {
+      width: 12px;
+      border-radius: 6px 6px 0 0;
+      background: #4caf50;
+      transition: height 0.2s ease, opacity 0.2s ease;
+      opacity: 0.3;
+      height: 4px;
+    }
+    .graph-label {
+      font-size: 0.75rem;
+      margin-top: 4px;
+    }
+
+    /* מצב כהה */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #121212;
+        color: #f5f5f5;
+      }
+      .card {
+        background: #1e1e1e;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      }
+      select, button {
+        background: #2a2a2a;
+        color: #f5f5f5;
+        border-color: #444;
+      }
+      .small {
+        color: #bbb;
+      }
+      .graph-bar {
+        background: #81c784;
+      }
     }
   </style>
 </head>
@@ -82,15 +146,21 @@
 
   <div class="card" id="tasksCard">
     <h2 id="dayTitle">ראשון - אימון כוח</h2>
-
-    <div id="tasksContainer">
-      <!-- ימולא דינמית לפי היום -->
-    </div>
+    <div id="tasksContainer"></div>
   </div>
 
   <div class="card">
     <h2>סטטוס שבועי</h2>
     <div class="stats" id="weeklyStats"></div>
+    <div class="streak" id="streakInfo"></div>
+
+    <div class="graph-container">
+      <div class="graph-title">התמדת אימונים בשבוע</div>
+      <div class="graph" id="weeklyGraph">
+        <!-- ימולא דינמית -->
+      </div>
+    </div>
+
     <button id="resetWeekBtn">איפוס שבוע</button>
   </div>
 
@@ -107,15 +177,11 @@
       },
       mon: {
         label: "שני - הליכה",
-        tasks: [
-          "הליכה 30 דקות"
-        ]
+        tasks: ["הליכה 30 דקות"]
       },
       tue: {
         label: "שלישי - מתיחות",
-        tasks: [
-          "מתיחות 5-7 דקות"
-        ]
+        tasks: ["מתיחות 5-7 דקות"]
       },
       wed: {
         label: "רביעי - אימון כוח",
@@ -128,25 +194,31 @@
       },
       thu: {
         label: "חמישי - הליכה",
-        tasks: [
-          "הליכה 30 דקות"
-        ]
+        tasks: ["הליכה 30 דקות"]
       },
       fri: {
         label: "שישי - הליכה או שחייה",
-        tasks: [
-          "הליכה 30 דקות או שחייה 20 דקות"
-        ]
+        tasks: ["הליכה 30 דקות או שחייה 20 דקות"]
       },
       sat: {
         label: "שבת - מנוחה / הליכה חופשית",
-        tasks: [
-          "הליכה קצרה (רשות)"
-        ]
+        tasks: ["הליכה קצרה (רשות)"]
       }
     };
 
-    const STORAGE_KEY = "david_workout_tracker_v1";
+    const dayOrder = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const dayLabelsShort = {
+      sun: "א",
+      mon: "ב",
+      tue: "ג",
+      wed: "ד",
+      thu: "ה",
+      fri: "ו",
+      sat: "ש"
+    };
+
+    const STORAGE_KEY = "david_workout_tracker_v2";
+    const BEST_STREAK_KEY = "david_workout_best_streak";
 
     function loadState() {
       try {
@@ -168,7 +240,23 @@
     const dayTitle = document.getElementById("dayTitle");
     const tasksContainer = document.getElementById("tasksContainer");
     const weeklyStats = document.getElementById("weeklyStats");
+    const streakInfo = document.getElementById("streakInfo");
     const resetWeekBtn = document.getElementById("resetWeekBtn");
+    const weeklyGraph = document.getElementById("weeklyGraph");
+
+    function getTodayKey() {
+      const jsDay = new Date().getDay();
+      switch (jsDay) {
+        case 0: return "sun";
+        case 1: return "mon";
+        case 2: return "tue";
+        case 3: return "wed";
+        case 4: return "thu";
+        case 5: return "fri";
+        case 6: return "sat";
+        default: return "sun";
+      }
+    }
 
     function renderDay(dayKey) {
       const dayPlan = plan[dayKey];
@@ -177,9 +265,7 @@
       dayTitle.textContent = dayPlan.label;
       tasksContainer.innerHTML = "";
 
-      if (!state[dayKey]) {
-        state[dayKey] = {};
-      }
+      if (!state[dayKey]) state[dayKey] = {};
 
       dayPlan.tasks.forEach((task, index) => {
         const row = document.createElement("div");
@@ -196,6 +282,8 @@
           state[dayKey][index] = checkbox.checked;
           saveState(state);
           renderStats();
+          updateWeeklyGraph();
+          updateStreak();
         });
 
         const span = document.createElement("span");
@@ -203,34 +291,115 @@
 
         label.appendChild(checkbox);
         label.appendChild(span);
-
         row.appendChild(label);
         tasksContainer.appendChild(row);
       });
     }
 
-    function renderStats() {
-      let totalTasks = 0;
-      let doneTasks = 0;
-
-      Object.keys(plan).forEach(dayKey => {
-        const tasks = plan[dayKey].tasks;
-        totalTasks += tasks.length;
-
-        if (state[dayKey]) {
-          tasks.forEach((_, idx) => {
-            if (state[dayKey][idx]) doneTasks += 1;
-          });
-        }
-      });
-
-      weeklyStats.textContent =
-        "הושלמו " + doneTasks + " מתוך " + totalTasks + " משימות השבוע.";
+    function countDoneForDay(dayKey) {
+      const dayPlan = plan[dayKey];
+      if (!dayPlan) return { done: 0, total: 0 };
+      const total = dayPlan.tasks.length;
+      let done = 0;
+      if (state[dayKey]) {
+        dayPlan.tasks.forEach((_, idx) => {
+          if (state[dayKey][idx]) done++;
+        });
+      }
+      return { done, total };
     }
 
-    daySelect.addEventListener("change", () => {
-      renderDay(daySelect.value);
-    });
+    function renderStats() {
+      let total = 0;
+      let done = 0;
+
+      dayOrder.forEach(dayKey => {
+        const res = countDoneForDay(dayKey);
+        total += res.total;
+        done += res.done;
+      });
+
+      weeklyStats.textContent = "הושלמו " + done + " מתוך " + total + " משימות השבוע.";
+    }
+
+    function isDayCompleted(dayKey) {
+      const res = countDoneForDay(dayKey);
+      return res.done > 0;
+    }
+
+    function getBestStreak() {
+      const raw = localStorage.getItem(BEST_STREAK_KEY);
+      if (!raw) return 0;
+      const num = parseInt(raw, 10);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function setBestStreak(value) {
+      localStorage.setItem(BEST_STREAK_KEY, String(value));
+    }
+
+    function updateStreak() {
+      const todayKey = getTodayKey();
+      const todayIndex = dayOrder.indexOf(todayKey);
+      let currentStreak = 0;
+
+      for (let i = 0; i < 7; i++) {
+        const idx = (todayIndex - i + 7) % 7;
+        const key = dayOrder[idx];
+        if (isDayCompleted(key)) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+
+      const bestStreak = getBestStreak();
+      if (currentStreak > bestStreak) {
+        setBestStreak(currentStreak);
+      }
+
+      const updatedBest = Math.max(currentStreak, bestStreak);
+      streakInfo.textContent =
+        "רצף נוכחי: " + currentStreak + " ימים ברצף. " +
+        "רצף שיא: " + updatedBest + " ימים.";
+    }
+
+    function buildWeeklyGraph() {
+      weeklyGraph.innerHTML = "";
+      dayOrder.forEach(dayKey => {
+        const col = document.createElement("div");
+        col.className = "graph-column";
+
+        const bar = document.createElement("div");
+        bar.className = "graph-bar";
+        bar.dataset.dayKey = dayKey;
+
+        const label = document.createElement("div");
+        label.className = "graph-label";
+        label.textContent = dayLabelsShort[dayKey] || "";
+
+        col.appendChild(bar);
+        col.appendChild(label);
+        weeklyGraph.appendChild(col);
+      });
+    }
+
+    function updateWeeklyGraph() {
+      const bars = weeklyGraph.querySelectorAll(".graph-bar");
+      bars.forEach(bar => {
+        const dayKey = bar.dataset.dayKey;
+        const res = countDoneForDay(dayKey);
+        let ratio = 0;
+        if (res.total > 0) {
+          ratio = res.done / res.total;
+        }
+        const minHeight = 4;
+        const maxHeight = 90;
+        const height = ratio === 0 ? minHeight : (minHeight + ratio * (maxHeight - minHeight));
+        bar.style.height = height + "px";
+        bar.style.opacity = ratio === 0 ? 0.25 : 0.9;
+      });
+    }
 
     resetWeekBtn.addEventListener("click", () => {
       if (!confirm("לאפס את כל הסימונים לשבוע זה?")) return;
@@ -238,11 +407,27 @@
       saveState(state);
       renderDay(daySelect.value);
       renderStats();
+      updateWeeklyGraph();
+      updateStreak();
     });
 
-    // התחלה - ברירת מחדל יום ראשון
-    renderDay("sun");
+    daySelect.addEventListener("change", () => {
+      renderDay(daySelect.value);
+    });
+
+    // התחלה - פתיחה ביום הנוכחי
+    const todayKey = getTodayKey();
+    daySelect.value = todayKey;
+    renderDay(todayKey);
     renderStats();
+    buildWeeklyGraph();
+    updateWeeklyGraph();
+    updateStreak();
+
+    // רישום service worker ל-PWA (לא חובה, אבל מומלץ)
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
   </script>
 </body>
 </html>
