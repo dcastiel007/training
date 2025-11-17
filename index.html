@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>מעקב אימונים - דוד</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 4px;
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin: 12px 0 4px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 4px 0;
+    }
+    select, button {
+      font-size: 1rem;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      cursor: pointer;
+    }
+    .small {
+      font-size: 0.85rem;
+      color: #555;
+    }
+    .day-label {
+      font-weight: 600;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+    }
+    .stats {
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>מעקב אימונים - תכנית מינימלית</h1>
+  <p class="small">
+    בחר יום, סמן את המשימות שביצעת. הנתונים נשמרים בטלפון.
+  </p>
+
+  <div class="card">
+    <div class="row">
+      <label for="daySelect"><strong>בחר יום:</strong></label>
+      <select id="daySelect">
+        <option value="sun">ראשון - אימון כוח</option>
+        <option value="mon">שני - הליכה</option>
+        <option value="tue">שלישי - מתיחות</option>
+        <option value="wed">רביעי - אימון כוח</option>
+        <option value="thu">חמישי - הליכה</option>
+        <option value="fri">שישי - הליכה או שחייה</option>
+        <option value="sat">שבת - מנוחה / הליכה חופשית</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" id="tasksCard">
+    <h2 id="dayTitle">ראשון - אימון כוח</h2>
+
+    <div id="tasksContainer">
+      <!-- ימולא דינמית לפי היום -->
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>סטטוס שבועי</h2>
+    <div class="stats" id="weeklyStats"></div>
+    <button id="resetWeekBtn">איפוס שבוע</button>
+  </div>
+
+  <script>
+    const plan = {
+      sun: {
+        label: "ראשון - אימון כוח",
+        tasks: [
+          "סקוואט לכיסא",
+          "לחיצות קיר",
+          "חתירה עם גומייה",
+          "פלנק קצר"
+        ]
+      },
+      mon: {
+        label: "שני - הליכה",
+        tasks: [
+          "הליכה 30 דקות"
+        ]
+      },
+      tue: {
+        label: "שלישי - מתיחות",
+        tasks: [
+          "מתיחות 5-7 דקות"
+        ]
+      },
+      wed: {
+        label: "רביעי - אימון כוח",
+        tasks: [
+          "סקוואט לכיסא",
+          "לחיצות קיר",
+          "חתירה עם גומייה",
+          "פלנק קצר"
+        ]
+      },
+      thu: {
+        label: "חמישי - הליכה",
+        tasks: [
+          "הליכה 30 דקות"
+        ]
+      },
+      fri: {
+        label: "שישי - הליכה או שחייה",
+        tasks: [
+          "הליכה 30 דקות או שחייה 20 דקות"
+        ]
+      },
+      sat: {
+        label: "שבת - מנוחה / הליכה חופשית",
+        tasks: [
+          "הליכה קצרה (רשות)"
+        ]
+      }
+    };
+
+    const STORAGE_KEY = "david_workout_tracker_v1";
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return {};
+        return JSON.parse(raw);
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveState(state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    let state = loadState();
+
+    const daySelect = document.getElementById("daySelect");
+    const dayTitle = document.getElementById("dayTitle");
+    const tasksContainer = document.getElementById("tasksContainer");
+    const weeklyStats = document.getElementById("weeklyStats");
+    const resetWeekBtn = document.getElementById("resetWeekBtn");
+
+    function renderDay(dayKey) {
+      const dayPlan = plan[dayKey];
+      if (!dayPlan) return;
+
+      dayTitle.textContent = dayPlan.label;
+      tasksContainer.innerHTML = "";
+
+      if (!state[dayKey]) {
+        state[dayKey] = {};
+      }
+
+      dayPlan.tasks.forEach((task, index) => {
+        const row = document.createElement("div");
+        row.className = "row";
+
+        const label = document.createElement("label");
+        label.className = "checkbox-label";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = !!state[dayKey][index];
+
+        checkbox.addEventListener("change", () => {
+          state[dayKey][index] = checkbox.checked;
+          saveState(state);
+          renderStats();
+        });
+
+        const span = document.createElement("span");
+        span.textContent = task;
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+
+        row.appendChild(label);
+        tasksContainer.appendChild(row);
+      });
+    }
+
+    function renderStats() {
+      let totalTasks = 0;
+      let doneTasks = 0;
+
+      Object.keys(plan).forEach(dayKey => {
+        const tasks = plan[dayKey].tasks;
+        totalTasks += tasks.length;
+
+        if (state[dayKey]) {
+          tasks.forEach((_, idx) => {
+            if (state[dayKey][idx]) doneTasks += 1;
+          });
+        }
+      });
+
+      weeklyStats.textContent =
+        "הושלמו " + doneTasks + " מתוך " + totalTasks + " משימות השבוע.";
+    }
+
+    daySelect.addEventListener("change", () => {
+      renderDay(daySelect.value);
+    });
+
+    resetWeekBtn.addEventListener("click", () => {
+      if (!confirm("לאפס את כל הסימונים לשבוע זה?")) return;
+      state = {};
+      saveState(state);
+      renderDay(daySelect.value);
+      renderStats();
+    });
+
+    // התחלה - ברירת מחדל יום ראשון
+    renderDay("sun");
+    renderStats();
+  </script>
+</body>
+</html>
