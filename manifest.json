@@ -1,7 +1,7 @@
 {
   "name": "מעקב אימונים - דוד",
   "short_name": "אימונים",
-  "start_url": "workout-tracker.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#ffffff",
